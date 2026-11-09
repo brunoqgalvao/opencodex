@@ -25,7 +25,7 @@ export default function DesktopCompatibilityAuthorization({ apiBase, authorized,
     <p className={authorized ? "notice-ok" : "notice-warn"}>{t(authorized ? "desktopCompat.authorized" : "desktopCompat.authorizeHint")}</p>
     {!authorized && <form onSubmit={event => void submit(event)}>
       <pre><code>{`ocx gui pair --desktop --origin ${new URL(apiBase || "/", window.location.href).origin}`}</code></pre>
-      <label>{t("desktopCompat.authorizationCode")}<input type="password" autoComplete="off" value={grant} disabled={busy} onChange={event => setGrant(event.target.value)} /></label>
+      <label>{t("desktopCompat.authorizationCode")}<input className="input" type="password" autoComplete="off" value={grant} disabled={busy} onChange={event => setGrant(event.target.value)} /></label>
       <button className="btn btn-primary" type="submit" disabled={busy || !grant.trim()}>{t("desktopCompat.authorize")}</button>
     </form>}
     {error && <p className="notice-err" role="alert">{t("desktopCompat.authorizeHint")} <code>{error}</code></p>}
