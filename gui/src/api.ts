@@ -292,6 +292,14 @@ function clearLegacySessionToken(): void {
   try { sessionStorage.removeItem(LEGACY_TOKEN_KEY); } catch { /* storage may be disabled */ }
 }
 
+/** Sensitive Desktop operations never enter renewal, admin fallback or POST replay. */
+export function fetchDesktopSession(input: RequestInfo | URL, init: RequestInit): Promise<Response> {
+  if (!installed) return globalThis.fetch(input, init);
+  const state = runtime("shared"), url = new URL(input instanceof Request ? input.url : String(input), window.location.href);
+  if (state.target.transport === "relay" || !targetMatchesUrl(state.target, url)) return Promise.reject(new Error("desktop_target_changed"));
+  return fetchApiSessionValidation("shared", input, init);
+}
+
 function targetAbsoluteBase(target: ApiTarget): URL {
   return new URL(target.baseUrl || "/", window.location.href);
 }

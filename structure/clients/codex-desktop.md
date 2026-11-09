@@ -81,9 +81,18 @@ in-process.
 `src/server/management/desktop-compatibility-routes.ts` exposes the authenticated
 `/api/codex/desktop-compatibility/certificate` setup endpoint. GET is read-only public metadata and OS-trust inspection;
 it does not decrypt a key, create a file, acquire a lease or register trust. POST
-requires a GUI-session principal on trusted loopback ingress and explicit confirmation.
+requires a current GUI session with a Desktop-purpose grant on trusted standalone loopback ingress and explicit confirmation.
 Trust mutations also require the exact SHA-256 fingerprint. Raw admin tokens cannot
 substitute browser provenance; this does not protect against arbitrary same-user code.
+
+`ocx gui pair --desktop --origin <dashboard-origin>` uses the attested runtime and private-home
+one-use intent through a separately signed pairing path. `/api/codex/desktop-compatibility/authorization`
+consumes that purpose only for the existing current browser session; GET reports its Desktop scope.
+The scope expires after at most five minutes without renewal and disappears with session revocation,
+eviction, restart or an observed role/listener change. It changes neither pairing issuance nor key
+disclosure authority. Certificate, runtime and startup-setting POSTs revalidate it before reading
+the body and after body/import awaits immediately before their service calls. An admitted operation
+finishes even if its scope expires while the service runs. Hub and connected-client writes stay refused.
 
 `src/codex/desktop-compatibility/certificate-service.ts` serializes setup and refuses
 busy operations. Only prepare may generate a key. Trust/removal load existing validated
@@ -214,7 +223,10 @@ The status CLI verb remains deferred to this integration owner.
 OpenCodex client mode does not offer these controls because its local listener deliberately
 does not admit durable machine mutations through a dashboard bootstrap session.
 
-`gui/src/desktop-compatibility-api.ts` projects public status and issues one POST per action.
+`gui/src/desktop-compatibility-api.ts` projects public status and issues one POST per action through
+`fetchDesktopSession` in `gui/src/api.ts`, bypassing automatic renewal, admin fallback and replay.
+`gui/src/pages/desktop-compatibility-authorization.tsx` exchanges a code once, validates Desktop scope,
+then refreshes certificate/runtime status and the startup revision. Earlier actions and consent are discarded.
 Fingerprint-bound trust/renew/removal and the account-wide trial require separate acknowledgement.
 Observe/start/stop/launch follow explicit button actions. No action is replayed after an uncertain
 response; a fresh status read is required. Changing the API target remounts the panel and discards

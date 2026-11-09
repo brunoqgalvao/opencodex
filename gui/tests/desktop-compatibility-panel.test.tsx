@@ -27,6 +27,7 @@ function server(uncertain = false, certificateState?: string, usagePhase?: strin
   globalThis.fetch = (async (input, init) => {
     const url = String(input), method = init?.method ?? "GET";
     requests.push({ url, method, body: init?.body ? JSON.parse(String(init.body)) : undefined });
+    if (url.endsWith("/authorization")) return Response.json({ ok: true, supported: true, authorized: true });
     if (url.endsWith("/settings")) {
       if (method === "POST") { startup = JSON.parse(String(init!.body)).startOnProxyStart; if (uncertain) throw new TypeError("uncertain response"); }
       return Response.json({ ok: true, settings: { startOnProxyStart: startup, revision: (startup ? "b" : "a").repeat(64) } });
@@ -68,6 +69,33 @@ test("StrictMode status reads are inert and a fingerprint-bound action needs exp
   await act(async () => button(container, "Start observation").click());
   expect(requests.filter(req => req.method === "POST").at(-1)?.body).toEqual({ action: "start", confirmed: true });
   expect(container.querySelector("fieldset")).toBeNull();
+});
+
+test("reauthorization refreshes fingerprint and revision without replaying old trust or consent", async () => {
+  const calls: { path: string; method: string }[] = []; let authorized = false, fingerprint = "A", exchanged = false;
+  globalThis.fetch = (async (input, init) => {
+    const path = String(input), method = init?.method ?? "GET"; calls.push({ path, method });
+    if (path.endsWith("/authorization")) {
+      if (method === "POST") { authorized = true; fingerprint = "B"; exchanged = true; }
+      return Response.json({ ok: true, supported: true, authorized });
+    }
+    if (path.endsWith("/settings")) return Response.json({ ok: true, settings: { startOnProxyStart: false, revision: (exchanged ? "b" : "a").repeat(64) } });
+    if (path.endsWith("/certificate")) return Response.json({ ok: true, certificate: { supported: true, state: "prepared", busy: null, fingerprint: fingerprint.repeat(64) } });
+    return Response.json({ ok: true, runtime: { supported: true, running: false, phase: "off" } });
+  }) as typeof fetch;
+  const container = await mount();
+  expect(button(container, "Register trust").disabled).toBe(true);
+  const code = container.querySelector('input[type="password"]') as HTMLInputElement;
+  await act(async () => {
+    const setter = Object.getOwnPropertyDescriptor(page.HTMLInputElement.prototype, "value")!.set!;
+    setter.call(code, "ocx_pair_" + "A".repeat(43));
+    code.dispatchEvent(new page.Event("input", { bubbles: true }));
+    code.dispatchEvent(new page.Event("change", { bubbles: true }));
+  });
+  await act(async () => container.querySelector("form")!.dispatchEvent(new page.Event("submit", { bubbles: true, cancelable: true })));
+  expect(calls.filter(call => call.method === "POST")).toEqual([{ path: "/api/codex/desktop-compatibility/authorization", method: "POST" }]);
+  expect(container.textContent).toContain("B".repeat(64)); expect(container.querySelector("fieldset")).toBeNull();
+  expect(button(container, "Register trust").disabled).toBe(false);
 });
 
 test.each(["expired-awaiting-original-response", "observing-awaiting-original-response"])("%s does not claim the native cache has reverted", async phase => {

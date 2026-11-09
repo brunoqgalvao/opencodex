@@ -2,18 +2,18 @@ import { jsonResponse } from "../auth-cors";
 import { readManagementJsonBody, rethrowManagementBodyTooLarge } from "./body";
 import type { ManagementContext } from "./context";
 import type { DesktopCertificateService } from "../../codex/desktop-compatibility/certificate-service";
+import { handleDesktopAuthorization, requireDesktopAuthorization } from "./desktop-authorization";
 
 const PATH = "/api/codex/desktop-compatibility/certificate";
 let service: DesktopCertificateService | undefined;
 
 export async function handleDesktopCompatibilityRoutes(ctx: ManagementContext): Promise<Response | null> {
+  const authorization = await handleDesktopAuthorization(ctx); if (authorization) return authorization;
   if (ctx.url.pathname !== PATH) return null;
   if (ctx.req.method !== "GET" && ctx.req.method !== "POST") return jsonResponse({ error: "method_not_allowed" }, 405);
-  // A local dashboard confirmation precedes any persisted key or CurrentUser Root mutation.
-  // This is caller provenance, not protection against an arbitrary same-user process.
-  if (ctx.req.method === "POST" && (ctx.principal !== "gui-session" || !ctx.trustedLoopbackIngress)) {
-    return jsonResponse({ error: "local_dashboard_confirmation_required" }, 403);
-  }
+  // Fresh private-home Desktop authority precedes persisted key or CurrentUser Root mutations.
+  // This remains an owner-write boundary, not protection against arbitrary same-user code.
+  if (ctx.req.method === "POST") { const denied = requireDesktopAuthorization(ctx); if (denied) return denied; }
   let action: "prepare" | "trust" | "remove-trust" | "renew" | undefined, fingerprint: string | undefined;
   if (ctx.req.method === "POST") {
     let body: unknown;
@@ -30,7 +30,9 @@ export async function handleDesktopCompatibilityRoutes(ctx: ManagementContext): 
     if (action === "prepare" && value.fingerprint !== undefined) return jsonResponse({ error: "unexpected_fingerprint" }, 400);
     fingerprint = value.fingerprint as string | undefined;
   }
-  const controller = ctx.deps.desktopCertificateService ?? (service ??= (await import("../../codex/desktop-compatibility/certificate-service")).createDesktopCertificateService());
+  const module = ctx.deps.desktopCertificateService || service ? null : await import("../../codex/desktop-compatibility/certificate-service");
+  if (ctx.req.method === "POST") { const denied = requireDesktopAuthorization(ctx); if (denied) return denied; }
+  const controller = ctx.deps.desktopCertificateService ?? (service ??= module!.createDesktopCertificateService());
   try {
     const status = action === "prepare" ? await controller.prepare()
       : action === "trust" ? await controller.trust(fingerprint!)
