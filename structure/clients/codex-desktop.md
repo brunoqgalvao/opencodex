@@ -91,16 +91,17 @@ requires a current GUI session with a Desktop-purpose grant on trusted standalon
 Trust mutations also require the exact SHA-256 fingerprint. Raw admin tokens cannot
 substitute the pairing ceremony, and automatically issued loopback sessions cannot mutate trust.
 The certificate response carries request-specific `mutationAuthorized` metadata. The local
-dashboard reuses `gui/src/connect-pairing.tsx` with a machine-plane handoff, validates that
-authority through a read-only certificate request, and commits the session before refreshing
-or enabling actions. Pairing never submits a certificate/runtime mutation or changes auto-start.
+dashboard uses `gui/src/pages/desktop-compatibility-authorization.tsx` for the Desktop grant
+exchange, validates that authority through a read-only certificate request, and commits the
+session before refreshing or enabling actions. Pairing never submits a certificate/runtime
+mutation or changes auto-start.
 Machine-session changes discard pending consent and disable actions until fresh authority is read.
 The startup-setting child synchronously aborts its own in-flight operation on a machine-session
 change and rejects late completions by generation. An interrupted preference operation stays
 uncertain until a fresh settings GET, independently of refreshed certificate authorization.
-`gui/tests/desktop-compatibility-panel.test.tsx`, `gui/tests/local-link-pairing.test.ts` and
-`tests/server/management-desktop-compatibility-routes.test.ts` cover the UI, credential plane
-and real loopback-versus-paired session boundary.
+`gui/tests/desktop-compatibility-panel.test.tsx` and
+`tests/server/management-desktop-compatibility-routes.test.ts` cover the UI and real
+loopback-versus-paired session boundary.
 
 `ocx gui pair --desktop --origin <dashboard-origin>` uses the attested runtime and private-home
 one-use intent through a separately signed pairing path. `/api/codex/desktop-compatibility/authorization`

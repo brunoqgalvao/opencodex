@@ -280,6 +280,7 @@ export function createGuiPairingGrant(
     !canonicalBrowserOrigin
     || canonicalBrowserOrigin !== browserOrigin
     || !serverOrigin
+    || (desktopPurpose && !localPairing)
     || (config.runtimeRole === "hub"
       ? !isRemoteGuiBrowserOriginAllowed(canonicalBrowserOrigin, config) : !localPairing)
   ) throw new TypeError("remote GUI origin is not allowed");
